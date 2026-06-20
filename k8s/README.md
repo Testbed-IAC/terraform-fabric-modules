@@ -40,7 +40,6 @@ the [example](../examples/k8s-cluster) for a full configuration.
 | `control_plane` | `{}` | Control-plane sizing (`cores`, `ram`, `disk`, `image_ref`). |
 | `workers` | one worker | Worker pools: `{ name, count, cores, ram, disk, image_ref, labels, taints }`. |
 | `k8s_version` | `1.31` | Kubernetes version. |
-| `cni` | `flannel` | Container network plugin. |
 | `storage` | `longhorn` | `longhorn` or `none`. |
 | `lb` | `none` | `metallb` or `none`. Required for `ingress`. |
 | `ingress` | `false` | Install ingress-nginx. |

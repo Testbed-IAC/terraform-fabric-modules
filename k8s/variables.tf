@@ -64,17 +64,6 @@ variable "k8s_version" {
   default     = "1.31"
 }
 
-variable "cni" {
-  description = "Container network plugin."
-  type        = string
-  default     = "flannel"
-
-  validation {
-    condition     = var.cni == "flannel"
-    error_message = "Only flannel is supported at this time."
-  }
-}
-
 variable "pod_cidr" {
   description = "Pod network CIDR."
   type        = string
