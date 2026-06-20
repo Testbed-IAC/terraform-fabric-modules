@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export KUBECONFIG="$HOME/.kube/config"
+
+%{ if manifests_present ~}
+if [ -s /tmp/k8s-manifests.yaml ]; then
+  kubectl apply -f /tmp/k8s-manifests.yaml
+fi
+%{ endif ~}
+
+%{ for c in helm_charts ~}
+cat > /tmp/${c.name}-values.yaml <<'VALUES_EOF'
+${c.values_yaml}
+VALUES_EOF
+%{ if c.values_file_content != "" ~}
+cat > /tmp/${c.name}-valuesfile.yaml <<'VALUESFILE_EOF'
+${c.values_file_content}
+VALUESFILE_EOF
+%{ endif ~}
+%{ if c.repo != null ~}
+helm repo add ${c.name}-repo "${c.repo}"
+helm repo update ${c.name}-repo
+%{ endif ~}
+helm upgrade --install ${c.name} ${c.is_local ? "/tmp/charts/${c.name}" : "${c.name}-repo/${c.chart}"} ${c.version != null ? "--version ${c.version}" : ""} \
+  --namespace ${c.namespace} --create-namespace \
+  -f /tmp/${c.name}-values.yaml%{ if c.values_file_content != "" } -f /tmp/${c.name}-valuesfile.yaml%{ endif } \
+  --wait --timeout ${helm_timeout}
+%{ endfor ~}
+
+echo "deploy complete"

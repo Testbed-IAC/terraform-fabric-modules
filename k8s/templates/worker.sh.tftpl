@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+${prereq}
+
+echo "waiting for control plane at ${server_ip}:6443"
+until curl -sk --connect-timeout 3 https://${server_ip}:6443/healthz >/dev/null 2>&1; do sleep 5; done
+
+if [ ! -f /etc/kubernetes/kubelet.conf ]; then
+  sudo kubeadm join ${server_ip}:6443 \
+    --token "${token}" \
+    --discovery-token-unsafe-skip-ca-verification \
+    --node-name ${node_name}
+fi
+test -f /etc/kubernetes/kubelet.conf || { echo "ERROR [join] ${node_name}: join failed" >&2; exit 1; }

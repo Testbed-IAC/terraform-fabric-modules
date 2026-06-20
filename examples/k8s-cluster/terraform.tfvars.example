@@ -1,0 +1,3 @@
+# Set your site. Key paths default to a standard fablib layout under
+# ~/work/fabric_config; override them here if yours differ.
+site = "STAR"

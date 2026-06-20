@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export KUBECONFIG="$HOME/.kube/config"
+
+wait_ready() {
+  local ns="$1"
+  local timeout="$${2:-300}"
+  local end
+  end=$(( $(date +%s) + timeout ))
+  while [ "$(date +%s)" -lt "$end" ]; do
+    local total notready
+    total=$(kubectl -n "$ns" get pods --no-headers 2>/dev/null | wc -l)
+    notready=$(kubectl -n "$ns" get pods --no-headers 2>/dev/null | grep -vcE 'Running|Completed' || true)
+    [ "$total" -gt 0 ] && [ "$notready" -eq 0 ] && return 0
+    sleep 5
+  done
+  echo "ERROR [addon] namespace $ns did not become ready" >&2
+  return 1
+}
+
+echo "waiting for ${node_count} nodes Ready"
+until [ "$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready')" -ge ${node_count} ]; do sleep 5; done
+
+%{ for n in worker_nodes ~}
+%{ for k, v in n.labels ~}
+kubectl label node ${n.name} ${k}=${v} --overwrite
+%{ endfor ~}
+%{ for t in n.taints ~}
+kubectl taint node ${n.name} ${t} --overwrite
+%{ endfor ~}
+%{ endfor ~}
+
+%{ if lb == "metallb" ~}
+helm repo add metallb https://metallb.github.io/metallb
+helm repo update metallb
+helm upgrade --install metallb metallb/metallb -n metallb-system --create-namespace --wait --timeout ${helm_timeout}
+wait_ready metallb-system 300
+# Wait for the validating webhook endpoint, then apply the address pool with a
+# retry (the webhook can lag behind pod readiness).
+for i in $(seq 1 60); do kubectl -n metallb-system get endpoints metallb-webhook-service -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q . && break; sleep 5; done
+for i in $(seq 1 30); do
+  if kubectl apply -f - <<METALLB_EOF
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  addresses:
+    - ${lb_pool}
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - default
+METALLB_EOF
+  then break; fi
+  sleep 5
+done
+%{ endif ~}
+
+%{ if storage == "longhorn" ~}
+helm repo add longhorn https://charts.longhorn.io
+helm repo update longhorn
+helm upgrade --install longhorn longhorn/longhorn -n longhorn-system --create-namespace
+wait_ready longhorn-system 900
+kubectl get sc longhorn >/dev/null 2>&1 || { echo "ERROR [storage] longhorn storageclass missing" >&2; exit 1; }
+%{ endif ~}
+
+%{ if ingress ~}
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update ingress-nginx
+helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace \
+  --set controller.service.type=LoadBalancer \
+  --set controller.service.loadBalancerIP=${lb_ingress_ip} \
+  --wait --timeout ${helm_timeout}
+wait_ready ingress-nginx 300
+%{ endif ~}
+
+%{ if monitoring_enabled ~}
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update prometheus-community
+cat > /tmp/monitoring-values.yaml <<VALUES_EOF
+grafana:
+  adminPassword: "$(cat /tmp/grafana-pw)"
+  defaultDashboardsEnabled: true
+  service:
+    type: ${grafana_lb ? "LoadBalancer" : "ClusterIP"}
+%{ if grafana_lb ~}
+    loadBalancerIP: ${lb_grafana_ip}
+%{ endif ~}
+kubeStateMetrics:
+  enabled: ${monitoring_kubernetes}
+nodeExporter:
+  enabled: ${monitoring_nodes}
+kubeApiServer:
+  enabled: ${monitoring_kubernetes}
+kubelet:
+  enabled: ${monitoring_kubernetes}
+kubeControllerManager:
+  enabled: ${monitoring_kubernetes}
+kubeScheduler:
+  enabled: ${monitoring_kubernetes}
+kubeProxy:
+  enabled: ${monitoring_kubernetes}
+VALUES_EOF
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace \
+  -f /tmp/monitoring-values.yaml
+wait_ready monitoring 600
+%{ endif ~}
+
+echo "addons complete"

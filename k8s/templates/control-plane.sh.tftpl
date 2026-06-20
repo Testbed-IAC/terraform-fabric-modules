@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+${prereq}
+
+if [ ! -f /etc/kubernetes/admin.conf ]; then
+  sudo kubeadm init \
+    --token "${token}" --token-ttl 0 \
+    --apiserver-advertise-address ${server_ip} \
+    --apiserver-cert-extra-sans 127.0.0.1,${server_ip} \
+    --pod-network-cidr ${pod_cidr} \
+    --service-cidr ${service_cidr} \
+    --node-name ${node_name}
+fi
+test -f /etc/kubernetes/admin.conf || { echo "ERROR [kubeadm-init] ${node_name}: admin.conf missing" >&2; exit 1; }
+
+mkdir -p "$HOME/.kube"
+sudo cp -f /etc/kubernetes/admin.conf "$HOME/.kube/config"
+sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+export KUBECONFIG="$HOME/.kube/config"
+
+# Flannel over the data NIC.
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+kubectl -n kube-flannel patch ds kube-flannel-ds --type=json \
+  -p="[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/args/-\",\"value\":\"--iface=$${DATA_IF}\"}]" || true
+
+for i in $(seq 1 36); do kubectl get nodes ${node_name} 2>/dev/null | grep -q ' Ready' && break; sleep 5; done
+kubectl get nodes ${node_name} 2>/dev/null | grep -q ' Ready' || { echo "ERROR [cni] ${node_name}: control-plane not Ready" >&2; exit 1; }
+
+if ! command -v helm >/dev/null 2>&1; then
+  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sudo bash
+fi
+command -v helm >/dev/null 2>&1 || { echo "ERROR [helm-install] ${node_name}: helm not installed" >&2; exit 1; }
