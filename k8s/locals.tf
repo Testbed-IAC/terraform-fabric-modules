@@ -45,11 +45,13 @@ locals {
 
   bootstrap_token = "${random_string.token_id.result}.${random_string.token_secret.result}"
 
-  ssh_user        = var.ssh.username
-  node_key        = pathexpand(coalesce(var.ssh.private_key_path, "~/.ssh/id_rsa"))
-  bastion_key     = pathexpand(coalesce(var.ssh.bastion_private_key, "~/work/fabric_config/fabric_bastion_key"))
-  bastion_host    = coalesce(var.ssh.bastion_host, data.fabric_bastion.this.host)
-  bastion_user    = coalesce(var.ssh.bastion_username, data.fabric_bastion.this.username)
+  ssh_user     = var.ssh.username
+  node_key     = pathexpand(coalesce(var.ssh.private_key_path, "~/.ssh/id_rsa"))
+  bastion_key  = pathexpand(coalesce(var.ssh.bastion_private_key, "~/work/fabric_config/fabric_bastion_key"))
+  bastion_host = coalesce(var.ssh.bastion_host, data.fabric_bastion.this.host)
+  bastion_user = coalesce(var.ssh.bastion_username, data.fabric_bastion.this.username)
+
+  ssh_flags       = "-i ${local.node_key} -o ProxyCommand='ssh -i ${local.bastion_key} -W [%h]:%p ${local.bastion_user}@${local.bastion_host}'"
   kubeconfig_path = coalesce(var.kubeconfig_path, "${path.root}/${var.name}.kubeconfig")
 
   manifests_content = join("\n---\n", [for p in var.manifests : file(p)])

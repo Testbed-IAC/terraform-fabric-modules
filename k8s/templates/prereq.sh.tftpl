@@ -35,7 +35,8 @@ export DEBIAN_FRONTEND=noninteractive
 # lock. Stop new runs from being scheduled, then let any in-flight run finish on
 # its own (killing it mid-install corrupts the package database).
 sudo systemctl mask apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
-for i in $(seq 1 180); do pgrep -f 'unattended-upgr|apt\.systemd\.daily' >/dev/null 2>&1 || break; sleep 5; done
+# the always-running unattended-upgrade-shutdown helper (it holds no lock).
+for i in $(seq 1 180); do pgrep -af 'unattended-upgrade|apt\.systemd\.daily' 2>/dev/null | grep -vq 'unattended-upgrade-shutdown' || break; sleep 5; done
 echo 'DPkg::Lock::Timeout "600";' | sudo tee /etc/apt/apt.conf.d/99lock-timeout >/dev/null
 sudo dpkg --configure -a || true
 sudo apt-get update -q

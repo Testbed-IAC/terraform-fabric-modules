@@ -32,22 +32,22 @@ the [example](../examples/k8s-cluster) for a full configuration.
 
 ## Inputs
 
-| Name | Default | Description |
-|------|---------|-------------|
-| `name` | — | Slice and cluster name. |
-| `site` | — | FABRIC site; all nodes use it. |
-| `ssh_key` | — | Public key installed on the nodes. |
-| `control_plane` | `{}` | Control-plane sizing (`cores`, `ram`, `disk`, `image_ref`). |
-| `workers` | one worker | Worker pools: `{ name, count, cores, ram, disk, image_ref, labels, taints }`. |
-| `k8s_version` | `1.31` | Kubernetes version. |
-| `storage` | `longhorn` | `longhorn` or `none`. |
-| `lb` | `none` | `metallb` or `none`. Required for `ingress`. |
-| `ingress` | `false` | Install ingress-nginx. |
-| `monitoring` | disabled | kube-prometheus-stack: `{ enabled, kubernetes, nodes, dashboards }`. |
-| `manifests` | `[]` | Local manifest paths applied after the cluster is ready. |
-| `helm_charts` | `[]` | Helm releases (local path or chart name with `repo`). |
-| `ssh` | fablib defaults | `{ username, private_key_path, bastion_* }`. |
-| `timeouts` | — | `{ slice, node, helm }`. |
+| Name            | Default         | Description                                                                   |
+| --------------- | --------------- | ----------------------------------------------------------------------------- |
+| `name`          | —               | Slice and cluster name.                                                       |
+| `site`          | —               | FABRIC site; all nodes use it.                                                |
+| `ssh_key`       | —               | Public key installed on the nodes.                                            |
+| `control_plane` | `{}`            | Control-plane sizing (`cores`, `ram`, `disk`, `image_ref`).                   |
+| `workers`       | one worker      | Worker pools: `{ name, count, cores, ram, disk, image_ref, labels, taints }`. |
+| `k8s_version`   | `1.31`          | Kubernetes version.                                                           |
+| `storage`       | `longhorn`      | `longhorn` or `none`.                                                         |
+| `lb`            | `none`          | `metallb` or `none`. Required for `ingress`.                                  |
+| `ingress`       | `false`         | Install ingress-nginx.                                                        |
+| `monitoring`    | disabled        | kube-prometheus-stack: `{ enabled, kubernetes, nodes, dashboards }`.          |
+| `manifests`     | `[]`            | Local manifest paths applied after the cluster is ready.                      |
+| `helm_charts`   | `[]`            | Helm releases (local path or chart name with `repo`).                         |
+| `ssh`           | fablib defaults | `{ username, private_key_path, bastion_* }`.                                  |
+| `timeouts`      | —               | `{ slice, node, helm }`.                                                      |
 
 See `variables.tf` for the full set and defaults.
 
@@ -78,3 +78,7 @@ otherwise they are `kubectl port-forward` commands. There are no external IPs.
 - `ingress = true` requires `lb = "metallb"`.
 - Pods have no external IPv4 egress. In-cluster DNS works; image and chart pulls
   run on the nodes over IPv6.
+- The output commands embed the key paths. On Windows, run them with the system
+  OpenSSH (`C:\Windows\System32\OpenSSH\ssh.exe`); the `ssh` bundled with git-bash
+  may not read FABRIC's key format.
+- This can take up to ~20 minutes per run.

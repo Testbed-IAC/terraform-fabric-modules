@@ -26,22 +26,22 @@ output "data_plane_ips" {
 
 output "ssh_command" {
   description = "SSH to the control plane through the bastion."
-  value       = "ssh -J ${local.bastion_user}@${local.bastion_host} ${local.ssh_user}@${local.cp_mgmt_ip}"
+  value       = "ssh ${local.ssh_flags} ${local.ssh_user}@${local.cp_mgmt_ip}"
 }
 
 output "api_tunnel_command" {
   description = "Forward the Kubernetes API to localhost:6443 so the kubeconfig works."
-  value       = "ssh -L 6443:${local.server_data_ip}:6443 -J ${local.bastion_user}@${local.bastion_host} ${local.ssh_user}@${local.cp_mgmt_ip}"
+  value       = "ssh -L 6443:${local.server_data_ip}:6443 ${local.ssh_flags} ${local.ssh_user}@${local.cp_mgmt_ip}"
 }
 
 output "access_commands" {
   description = "Commands to reach cluster web UIs from localhost."
   value = merge(
     var.monitoring.enabled ? {
-      grafana = local.grafana_lb ? "ssh -L 3000:${local.lb_grafana_ip}:80 -J ${local.bastion_user}@${local.bastion_host} ${local.ssh_user}@${local.cp_mgmt_ip}  # http://localhost:3000" : "kubectl --kubeconfig ${local.kubeconfig_path} -n monitoring port-forward svc/monitoring-grafana 3000:80  # http://localhost:3000 (requires api_tunnel_command)"
+      grafana = local.grafana_lb ? "ssh -L 3000:${local.lb_grafana_ip}:80 ${local.ssh_flags} ${local.ssh_user}@${local.cp_mgmt_ip}  # http://localhost:3000" : "kubectl --kubeconfig ${local.kubeconfig_path} -n monitoring port-forward svc/monitoring-grafana 3000:80  # http://localhost:3000 (requires api_tunnel_command)"
     } : {},
     var.ingress ? {
-      ingress = "ssh -L 8080:${local.lb_ingress_ip}:80 -J ${local.bastion_user}@${local.bastion_host} ${local.ssh_user}@${local.cp_mgmt_ip}  # http://localhost:8080"
+      ingress = "ssh -L 8080:${local.lb_ingress_ip}:80 ${local.ssh_flags} ${local.ssh_user}@${local.cp_mgmt_ip}  # http://localhost:8080"
     } : {},
   )
 }
